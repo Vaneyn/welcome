@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Главное меню</title>
+    <style>
+        /* Общие стили для body */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #41444C; /* Темно-серый фон */
+            color: white; /* Цвет текста по умолчанию */
+            font-family: sans-serif; /* Чистый шрифт */
+            overflow: hidden; /* Запрет прокрутки */
+            display: flex;
+            flex-direction: column; /* Элементы располагаются вертикально */
+            align-items: center; /* Центрирование по горизонтали */
+            justify-content: center; /* Центрирование по вертикали */
+            min-height: 100vh; /* Высота на весь экран */
+            /* Запрет выделения текста */
+            -webkit-user-select: none; /* Safari */
+            -moz-user-select: none; /* Firefox */
+            -ms-user-select: none; /* Internet Explorer/Edge */
+            user-select: none; /* Стандартное свойство */
+            /* Убрать синий/серый оттенок при нажатии на элементы на мобильных */
+            -webkit-tap-highlight-color: transparent; /* Safari */
+            tap-highlight-color: transparent; /* Стандартное свойство */
+        }
+
+        /* Стили для логотипа */
+        .logo {
+            width: 322px; /* Заданная ширина */
+            height: 162px; /* Заданная высота */
+            margin-bottom: 40px; /* Отступ снизу от логотипа */
+            display: block; /* Чтобы margin-bottom работал корректно */
+            max-width: 90%; /* Логотип не будет шире 90% экрана на маленьких устройствах */
+            height: auto; /* Сохранение пропорций при уменьшении */
+        }
+
+        /* Стили для кнопок-ссылок */
+        .menu-button {
+            display: block; /* Каждая кнопка на новой строке */
+            width: 80%; /* Ширина кнопки */
+            max-width: 300px; /* Максимальная ширина кнопки */
+            padding: 15px 20px; /* Внутренние отступы */
+            margin-bottom: 20px; /* Отступ между кнопками */
+            text-align: center; /* Выравнивание текста по центру */
+            text-decoration: none; /* Убрать подчеркивание у ссылок */
+            color: white; /* Цвет текста кнопки */
+            background-color: #555; /* Фон кнопки */
+            border: none; /* Убрать стандартную границу */
+            border-radius: 8px; /* Скругленные углы */
+            cursor: pointer; /* Курсор в виде указателя */
+            font-size: 1.1em; /* Размер шрифта */
+            transition: background-color 0.3s ease; /* Плавное изменение цвета при наведении */
+        }
+
+        /* Убрать нижний отступ у последней кнопки */
+        .menu-button:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Эффект при наведении */
+        .menu-button:hover {
+            background-color: #666; /* Темнее фон при наведении */
+        }
+
+        /* Убрать стандартный outline при фокусе (для доступности можно добавить свой стиль) */
+        .menu-button:focus {
+            outline: none;
+        }
+
+        /* Убедиться, что элементы не выходят за пределы экрана */
+        * {
+            box-sizing: border-box;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Логотип -->
+    <!-- Замените "path/to/your/logo.png" на путь к вашему изображению -->
+    <img src="logo.png" alt="Логотип" class="logo">
+
+    <!-- Кнопки меню -->
+    <a href="testing.html" class="menu-button">Начать проверку</a>
+    <a href="redaction.html" class="menu-button">Редактор карточек</a>
+   <a href="saver.html" class="menu-button">Импорт/экспорт данных</a>
+
+</body>
+</html>
