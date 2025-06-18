@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Редактор карточек</title>
+  <style>
+    body { margin:0; padding:0; font-family:sans-serif; background:#f0f0f0; color:#222;
+           display:flex; flex-direction:column; height:100vh; }
+    header { background:#444; color:#fff; padding:10px; display:flex; align-items:center;
+             justify-content:space-between; }
+    header .back { color:#fff; text-decoration:none; font-size:1.2em; }
+    #content { flex:1; overflow-y:auto; padding:10px; }
+    .breadcrumbs { font-size:.9em; margin-bottom:10px; }
+    .list-item { background:#fff; margin-bottom:8px; padding:10px; border-radius:4px;
+                 display:flex; justify-content:space-between; align-items:center; }
+    .list-item.folder { border-left:4px solid #888; }
+    .list-item.card   { border-left:4px solid #6a9; }
+    .list-item .name { flex:1; word-break:break-word; display:flex; align-items:center; }
+    .list-item .icon { margin-right:8px; font-size:1.2em; }
+    .btns button { background:none; border:none; font-size:1.2em; margin-left:8px;
+                   cursor:pointer; }
+    footer { padding:10px; background:#444; display:flex; }
+    footer button { flex:1; background:#666; color:#fff; border:none;
+                    padding:10px 0; font-size:1.5em; border-radius:4px; margin:0 5px;
+                    cursor:pointer; }
+    #modal { position:fixed; top:0; left:0; right:0; bottom:0;
+             background:rgba(0,0,0,0.5); display:none; align-items:center;
+             justify-content:center; }
+    #modal .dialog { background:#fff; padding:20px; border-radius:6px;
+                      width:90%; max-width:400px; max-height:90%; overflow-y:auto; }
+    #modal .close { background:none; border:none; font-size:1.2em;
+                    position:absolute; top:10px; right:10px; cursor:pointer; }
+    .pairs { display:flex; flex-direction:column; }
+    .pair-row { display:flex; margin-bottom:8px; }
+    .pair-row input { flex:1; padding:6px; margin-right:4px;
+                      border:1px solid #ccc; border-radius:3px; }
+    .pair-row input:last-child { margin-right:0; }
+    #saveCard { width:100%; padding:10px; border:none;
+                background:#28a745; color:#fff; font-size:1em;
+                border-radius:4px; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="WelcomeWords.html" class="back">← Назад</a>
+    <div>Редактор карточек</div>
+    <div></div>
+  </header>
+
+  <div id="content">
+    <div class="breadcrumbs" id="breadcrumbs"></div>
+    <div id="list"></div>
+  </div>
+
+  <footer>
+    <button id="btnAddFolder">➕📁</button>
+    <button id="btnAddCard">➕📝</button>
+  </footer>
+
+  <div id="modal">
+    <div class="dialog">
+      <button class="close">✖️</button>
+      <h3 id="modalTitle">Новая карточка</h3>
+      <div class="pairs" id="pairs"></div>
+      <button id="saveCard">✅ Сохранить</button>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const storage = localStorage;
+  let currentPath = '/root';
+
+  // Инициализация
+  if (!Object.keys(storage).some(k => k === '/root')) {
+    storage.setItem('/root', JSON.stringify({ type:'folder', children:[] }));
+  }
+
+  function getObj(path) {
+    try { return JSON.parse(storage.getItem(path)); }
+    catch { return null; }
+  }
+  function setObj(path, obj) {
+    storage.setItem(path, JSON.stringify(obj));
+  }
+
+  // Рекурсивное удаление
+  function deleteItem(path) {
+    const obj = getObj(path);
+    if (!obj) return;
+    if (obj.type === 'folder') {
+      obj.children.forEach(child => deleteItem(path + '/' + child));
+    }
+    storage.removeItem(path);
+    const parent = path.slice(0, path.lastIndexOf('/')) || '/root';
+    const name   = path.split('/').pop();
+    const pObj = getObj(parent);
+    if (pObj) {
+      pObj.children = pObj.children.filter(c => c !== name);
+      setObj(parent, pObj);
+    }
+  }
+
+  function setPath(path) {
+    currentPath = path;
+    render();
+  }
+
+  function renderBreadcrumbs() {
+    const parts = currentPath.split('/').filter(Boolean);
+    let acc = '';
+    const crumbs = parts.map(p => {
+      acc += '/' + p;
+      return `<a href="#" data-path="${acc}">${p}</a>`;
+    });
+    document.getElementById('breadcrumbs').innerHTML = crumbs.join(' / ');
+    document.querySelectorAll('#breadcrumbs a')
+      .forEach(a => a.onclick = e => { e.preventDefault(); setPath(a.dataset.path); });
+  }
+
+  function renderList() {
+    const listEl = document.getElementById('list');
+    listEl.innerHTML = '';
+    const obj = getObj(currentPath);
+    obj.children.forEach(name => {
+      const path = currentPath + '/' + name;
+      const item = getObj(path);
+      const div = document.createElement('div');
+      div.className = 'list-item ' + item.type;
+      const icon = item.type === 'folder' ? '📁' : '📝';
+      div.innerHTML = `
+        <div class="name"><span class="icon">${icon}</span>${name}</div>
+        <div class="btns">
+          <button class="edit" data-path="${path}">✏️</button>
+          <button class="del"  data-path="${path}">🗑️</button>
+        </div>`;
+      listEl.appendChild(div);
+
+      // Навигация по папке без иконки в имени
+      if (item.type === 'folder') {
+        div.querySelector('.name').onclick = () => setPath(path);
+      }
+      // Редактирование и удаление
+      div.querySelector('button.edit').onclick = () => openEditor(path);
+      div.querySelector('button.del').onclick = () => {
+        if (confirm(`Удалить "${path}" со всем содержимым?`)) {
+          deleteItem(path);
+          render();
+        }
+      };
+    });
+  }
+
+  // Модалка для карточек
+  function openEditor(path = null) {
+    const modal = document.getElementById('modal');
+    const title = document.getElementById('modalTitle');
+    const pairs = document.getElementById('pairs');
+    pairs.innerHTML = '';
+    const data = path ? getObj(path).data || [] : [];
+
+    title.textContent = path ? 'Редактировать карточку' : 'Новая карточка';
+    function addRow(r='', e='') {
+      const row = document.createElement('div'); row.className='pair-row';
+      const ru = document.createElement('input'); ru.placeholder='Русское слово'; ru.value=r;
+      const en = document.createElement('input'); en.placeholder='Английское слово'; en.value=e;
+      en.oninput = () => {
+        const rows = [...pairs.querySelectorAll('.pair-row')];
+        if (rows[rows.length-1] === row && (ru.value||en.value)) addRow();
+      };
+      row.append(ru, en); pairs.append(row);
+    }
+    data.length ? data.forEach(p => addRow(p[0], p[1])) : addRow();
+
+    modal.style.display = 'flex';
+    modal.querySelector('.close').onclick = () => modal.style.display = 'none';
+    document.getElementById('saveCard').onclick = () => {
+      const vals = [...pairs.querySelectorAll('.pair-row')]
+        .map(r => {
+          const [ru,en] = [r.children[0].value.trim(), r.children[1].value.trim()];
+          return (ru&&en) ? [ru,en] : null;
+        }).filter(x => x);
+      if (!vals.length) return alert('Нужно хотя бы одно соответствие!');
+
+      const name = path
+        ? path.split('/').pop()
+        : prompt('Название карточки')?.trim();
+      if (!name) return;
+
+      const full = currentPath + '/' + name;
+      setObj(full, { type:'card', data:vals });
+      const parent = getObj(currentPath);
+      if (!parent.children.includes(name)) {
+        parent.children.push(name);
+        setObj(currentPath, parent);
+      }
+      modal.style.display = 'none';
+      render();
+    };
+  }
+
+  // Кнопки внизу
+  document.getElementById('btnAddFolder').onclick = () => {
+    const name = prompt('Имя новой папки')?.trim();
+    if (!name) return;
+    const obj = getObj(currentPath);
+    if (obj.children.includes(name))
+      return alert('Уже есть папка или карточка с таким именем');
+    obj.children.push(name);
+    setObj(currentPath, obj);
+    setObj(currentPath + '/' + name, { type:'folder', children:[] });
+    render();
+  };
+  document.getElementById('btnAddCard').onclick = () => openEditor();
+
+  // Рендерим при старте
+  function render() {
+    renderBreadcrumbs();
+    renderList();
+  }
+  render();
+})();
+</script>
