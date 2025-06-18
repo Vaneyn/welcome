@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Тест карточек</title>
+  <style>
+    * { box-sizing:border-box; margin:0; padding:0 }
+    body {
+      font-family: sans-serif;
+      background: #f0f0f0; color:#222;
+      display:flex; flex-direction:column; height:100vh;
+    }
+    header {
+      background:#444; color:#fff; padding:10px;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    header .back {
+      color:#fff; text-decoration:none; font-size:1.2em;
+    }
+    #content { flex:1; overflow-y:auto; padding:10px }
+    .breadcrumbs { font-size:.9em; margin-bottom:10px }
+    .list-item {
+      background:#fff; margin-bottom:8px; padding:10px;
+      border-radius:4px; display:flex; align-items:center;
+      cursor:pointer;
+    }
+    .list-item .icon { font-size:1.2em; margin-right:8px }
+
+    .modal, #testScreen, #resultModal {
+      position:fixed; top:0; left:0; right:0; bottom:0;
+      background:rgba(0,0,0,0.5);
+      display:none; align-items:center; justify-content:center;
+    }
+    .modal .dialog, #resultModal .dialog {
+      background:#fff; padding:20px; border-radius:6px;
+      width:90%; max-width:300px; text-align:center;
+    }
+
+    #testScreen {
+      background: linear-gradient(
+        to bottom, #006400 0%, #28a745 45%, #dc3545 55%, #8b0000 100%
+      );
+      display:none; flex-direction:column; color:#fff;
+    }
+    #countdown { font-size:4em; margin-bottom:20px }
+    #card {
+      position:relative; width:80%; max-width:300px; height:200px;
+      background:#fff; border-radius:12px; overflow:hidden;
+      touch-action:none;
+    }
+    #card .text {
+      position:absolute; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      font-size:2em; z-index:1; color:#222;
+      text-align:center; padding:0 10px; user-select:none;
+    }
+    #card svg.timer {
+      position:absolute; top:0; left:0; width:100%; height:100%;
+      preserveAspectRatio:none; pointer-events:none; z-index:0;
+    }
+    #card svg.timer rect {
+      x:2%; y:2%; width:96%; height:96%; rx:12; ry:12;
+      fill:none; stroke:#007bff; stroke-width:4;
+      stroke-dasharray:384; stroke-dashoffset:0;
+      transition:stroke-dashoffset linear;
+    }
+
+    .dialog input[type=range] { width:100% }
+    .dialog label { display:block; margin:10px 0 5px }
+    .dialog .actions { margin-top:15px }
+    .dialog button { padding:10px 15px; margin:5px; font-size:1em; cursor:pointer }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="WelcomeWords.html" class="back">← Назад</a>
+    <div>Тест карточек</div>
+    <div></div>
+  </header>
+
+  <div id="content">
+    <div class="breadcrumbs" id="breadcrumbs"></div>
+    <div id="list"></div>
+  </div>
+
+  <!-- Настройки -->
+  <div class="modal" id="settingsModal">
+    <div class="dialog">
+      <h3>Настройки теста</h3>
+      <label for="timeRange">Время на карточку: <span id="timeLabel">7</span> с</label>
+      <input type="range" id="timeRange" min="5" max="15" step="2" value="7">
+      <label for="langSelect">Показ слова:</label>
+      <select id="langSelect">
+        <option value="ru">Русское</option>
+        <option value="en">Английское</option>
+      </select>
+      <div class="actions">
+        <button id="startTest">✅ Старт</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Экран теста -->
+  <div id="testScreen">
+    <div id="countdown"></div>
+    <div id="card"></div>
+  </div>
+
+  <!-- Результаты -->
+  <div class="modal" id="resultModal">
+    <div class="dialog">
+      <h3>Тест завершён</h3>
+      <p>Правильно: <span id="score"></span></p>
+      <div class="actions">
+        <button id="retry">Начать заново</button>
+        <button id="toMenu">В главное меню</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    const storage = localStorage;
+    if (!storage.getItem('/root'))
+      storage.setItem('/root', JSON.stringify({ type:'folder', children:[] }));
+    const getObj = p => JSON.parse(storage.getItem(p)||'null');
+
+    let currentPath = '/root';
+    let selectedCard, words, idx, correct;
+    let timePerCard = 7, showLang = 'ru';
+    let timerId, startY, lastTap=0, flipped=false, skipNextEnd=false;
+    const doubleTapInterval = 300;
+
+    // UI элементы
+    const tr = document.getElementById('timeRange'),
+          tl = document.getElementById('timeLabel'),
+          ls = document.getElementById('langSelect');
+
+    tr.oninput = () => tl.textContent = tr.value;
+    ls.onchange = () => showLang = ls.value;
+    document.getElementById('startTest').onclick = () => {
+      timePerCard = +tr.value;
+      document.getElementById('settingsModal').style.display = 'none';
+      startCountdown();
+    };
+    document.getElementById('retry').onclick = () => {
+      document.getElementById('resultModal').style.display = 'none';
+      startCountdown();
+    };
+    document.getElementById('toMenu').onclick = () => {
+      location.href = 'WelcomeWords.html';
+    };
+
+    function setPath(p){ currentPath = p; renderList(); }
+
+    function renderList(){
+      // Хлебные крошки
+      const parts = currentPath.split('/').filter(Boolean);
+      let acc='';
+      document.getElementById('breadcrumbs').innerHTML =
+        parts.map(p=>(acc+='/'+p, `<a href="#" data-path="${acc}">${p}</a>`))
+             .join(' / ');
+      document.querySelectorAll('#breadcrumbs a')
+        .forEach(a=>a.onclick=e=>{ e.preventDefault(); setPath(a.dataset.path); });
+
+      // Папки/карточки
+      const list = document.getElementById('list');
+      list.innerHTML = '';
+      getObj(currentPath).children.forEach(name=>{
+        const path = currentPath+'/'+name, it = getObj(path);
+        const div = document.createElement('div');
+        div.className='list-item';
+        div.innerHTML = `<span class="icon">${it.type==='folder'?'📁':'📝'}</span>${name}`;
+        div.onclick = ()=> it.type==='folder' ? setPath(path) : openSettings(path);
+        list.appendChild(div);
+      });
+    }
+
+    function openSettings(path){
+      selectedCard = getObj(path).data.slice();
+      document.getElementById('settingsModal').style.display = 'flex';
+    }
+
+    function startCountdown(){
+      const cd = document.getElementById('countdown');
+      let n=3; cd.textContent=n;
+      const scr = document.getElementById('testScreen');
+      scr.style.display = 'flex';
+      const iv = setInterval(()=>{
+        n--;
+        if(n>0) cd.textContent=n;
+        else {
+          clearInterval(iv);
+          cd.style.display='none';
+          runTest();
+        }
+      },700);
+    }
+
+    function runTest(){
+      words = selectedCard.slice();
+      idx=0; correct=0;
+      nextCard();
+    }
+
+    function nextCard(){
+      clearTimeout(timerId);
+      flipped = false;
+      skipNextEnd = false;
+      const card = document.getElementById('card');
+      if(idx>=words.length) return showResult();
+
+      const [ru,en] = words[idx++],
+            front = showLang==='ru'?ru:en,
+            back  = showLang==='ru'?en:ru;
+
+      // Вставляем текст и таймер
+      card.innerHTML = `
+        <div class="text">${front}</div>
+        <svg class="timer" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <rect x="2%" y="2%" width="96%" height="96%" rx="12" ry="12"/>
+        </svg>`;
+
+      card.style.transition='none';
+      card.style.transform='translateY(0)';
+
+      // Показываем и запускаем рамку
+      const svg = card.querySelector('svg.timer');
+      svg.style.display = 'block';
+      const rect = svg.querySelector('rect');
+      rect.style.transition = `stroke-dashoffset ${timePerCard}s linear`;
+      rect.style.strokeDasharray = 384;
+      rect.style.strokeDashoffset = 0;
+      setTimeout(()=> rect.style.strokeDashoffset = '384', 20);
+
+      // Авто-ответ
+      timerId = setTimeout(()=> finishCard(false), timePerCard*1000);
+
+      // Обработчики свайпа и двойного тапа
+      card.ontouchstart = e => {
+        const now = Date.now();
+        if(now - lastTap < doubleTapInterval){
+          // двойной тап
+          flipped = !flipped;
+          skipNextEnd = true;           // пропускаем следующий touchend
+          clearTimeout(timerId);
+          svg.style.display = 'none';   // скрываем рамку
+          card.querySelector('.text').textContent = flipped ? back : front;
+        } else {
+          // первый тап
+          lastTap = now;
+          clearTimeout(timerId);
+          startY = e.touches[0].clientY;
+          card.style.transition = 'none';
+        }
+      };
+      card.ontouchmove = e => {
+        const dy = e.touches[0].clientY - startY;
+        card.style.transform = `translateY(${dy}px)`;
+      };
+      card.ontouchend = e => {
+        if(skipNextEnd){
+          // сбросим флаг и ничего не делаем
+          skipNextEnd = false;
+          return;
+        }
+        const dy = e.changedTouches[0].clientY - startY;
+        const th = card.clientHeight * 0.3;
+        if(Math.abs(dy) > th || flipped){
+          finishCard(dy < 0);
+        } else {
+          // вернуть на место и рестарт таймера
+          card.style.transition = 'transform .3s';
+          card.style.transform = 'translateY(0)';
+          timerId = setTimeout(()=> finishCard(false), timePerCard*1000);
+        }
+      };
+    }
+
+    function finishCard(ok){
+      clearTimeout(timerId);
+      const card = document.getElementById('card');
+      if(ok) correct++;
+      card.style.transition = 'transform .3s';
+      const off = card.clientHeight * 1.5;
+      card.style.transform = ok
+        ? `translateY(-${off}px)`
+        : `translateY(${off}px)`;
+      setTimeout(nextCard, 300);
+    }
+
+    function showResult(){
+      document.getElementById('testScreen').style.display = 'none';
+      document.getElementById('score').textContent = `${correct}/${words.length}`;
+      document.getElementById('resultModal').style.display = 'flex';
+    }
+
+    renderList();
+  })();
+  </script>
+
+</body>
+</html>
