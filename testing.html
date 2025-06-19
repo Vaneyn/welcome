@@ -132,6 +132,10 @@
     let timePerCard = 7, showLang = 'ru';
     let timerId, startY, lastTap=0, flipped=false, skipNextEnd=false;
     const doubleTapInterval = 300;
+    
+    // Переменные для управления клавиатурой
+    let keysPressed = {};
+    let canFlipByKeyboard = true;
 
     // UI элементы
     const tr = document.getElementById('timeRange'),
@@ -202,6 +206,8 @@
     function runTest(){
       words = selectedCard.slice();
       idx=0; correct=0;
+      keysPressed = {};
+      canFlipByKeyboard = true;
       nextCard();
     }
 
@@ -296,6 +302,49 @@
       document.getElementById('score').textContent = `${correct}/${words.length}`;
       document.getElementById('resultModal').style.display = 'flex';
     }
+    
+    // Обработчики событий клавиатуры
+    document.addEventListener('keydown', function(e) {
+      // Проверяем активен ли тест
+      if (document.getElementById('testScreen').style.display !== 'flex') return;
+      
+      keysPressed[e.code] = true;
+      
+      // Обработка стрелок
+      if (e.code === 'ArrowUp') {
+        finishCard(true);
+      } else if (e.code === 'ArrowDown') {
+        finishCard(false);
+      }
+      
+      // Проверка на нажатие двух клавиш одновременно
+      if (Object.keys(keysPressed).length >= 2 && canFlipByKeyboard) {
+        // Переворачиваем карточку
+        flipped = !flipped;
+        skipNextEnd = true;
+        clearTimeout(timerId);
+        const card = document.getElementById('card');
+        const svg = card.querySelector('svg.timer');
+        if (svg) svg.style.display = 'none';
+        
+        const [ru, en] = words[idx-1];
+        const front = showLang === 'ru' ? ru : en;
+        const back = showLang === 'ru' ? en : ru;
+        card.querySelector('.text').textContent = flipped ? back : front;
+        
+        // Запрещаем повторный переворот
+        canFlipByKeyboard = false;
+      }
+    });
+
+    document.addEventListener('keyup', function(e) {
+      delete keysPressed[e.code];
+      
+      // Разрешаем переворот снова
+      if (Object.keys(keysPressed).length < 2) {
+        canFlipByKeyboard = true;
+      }
+    });
 
     renderList();
   })();
