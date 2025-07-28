@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>LocalStorage: Экспорт / Импорт</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body {
       background: #f0f0f0;
@@ -22,7 +23,7 @@
       resize: vertical;
       font-family: monospace;
     }
-    button {
+    button, input[type="file"] {
       margin: 5px 5px 15px 0;
       padding: 10px 20px;
       border: none;
@@ -33,6 +34,9 @@
     button:hover {
       background: #666;
     }
+    input[type="file"] {
+      background: #aaa;
+    }
   </style>
 </head>
 <body>
@@ -40,13 +44,17 @@
   <h1>LocalStorage: Экспорт / Импорт</h1>
 
   <button id="exportBtn">Экспорт</button>
-  <button id="importBtn">Импорт</button>
+  <button id="downloadBtn">Скачать файл</button>
+  <button id="importBtn">Импорт из поля</button>
+  <input type="file" id="fileInput" accept=".json,.txt">
+  <button id="clearBtn">Очистить поле</button>
+
   <textarea id="dataArea" placeholder="Здесь появится закодированный JSON…"></textarea>
+
   <script>
-alert('Будьте аккуратны! Использование этой экспериментальной функции способно повредить и уничтожить данные приложения. Не все, но большую часть. Однако, вы можете сохранить и восстановить свои данные с помощью этого инструмента. Советую использовать перед обновлениями. ');
-  </script>
-  <script>
-    // Кодирование/декодирование UTF-8 ⟷ base64 через TextEncoder/TextDecoder
+    alert('Внимание: это экспериментальный инструмент! Импорт заменит существующие данные с совпадающими ключами, но ничего не удалит. Советую сохранять данные перед обновлениями.');
+
+    // Кодировка и декодировка UTF-8 ⟷ base64
     function encodeUTF8(str) {
       const encoder = new TextEncoder();
       const bytes = encoder.encode(str);
@@ -54,6 +62,7 @@ alert('Будьте аккуратны! Использование этой эк
       for (let b of bytes) binary += String.fromCharCode(b);
       return btoa(binary);
     }
+
     function decodeUTF8(b64) {
       const binary = atob(b64);
       const bytes = new Uint8Array([...binary].map(ch => ch.charCodeAt(0)));
@@ -61,7 +70,7 @@ alert('Будьте аккуратны! Использование этой эк
       return decoder.decode(bytes);
     }
 
-    // Функция для экспорта
+    // Экспорт localStorage
     function doExport() {
       try {
         if (!window.localStorage) throw new Error('LocalStorage не поддерживается');
@@ -72,46 +81,97 @@ alert('Будьте аккуратны! Использование этой эк
         }
         const json = JSON.stringify(dump);
         const encoded = encodeUTF8(json);
-        document.getElementById('dataArea').value = encoded;
+        const area = document.getElementById('dataArea');
+        area.value = encoded;
+        area.focus();
       } catch (err) {
         alert('Ошибка при экспорте: ' + err.message);
       }
     }
 
-    // Функция для импорта
-    function doImport() {
+    // Импорт из поля
+    function doImportFromText() {
       try {
-        if (!window.localStorage) throw new Error('LocalStorage не поддерживается');
         const encoded = document.getElementById('dataArea').value.trim();
         if (!encoded) throw new Error('Поле ввода пустое');
+
         let json;
         try {
           json = decodeUTF8(encoded);
         } catch {
           throw new Error('Неверный формат base64 или повреждённые данные');
         }
+
         let obj;
         try {
           obj = JSON.parse(json);
         } catch {
           throw new Error('Не удалось распарсить JSON');
         }
-        // Запрос на подтверждение, если в localStorage уже есть данные
-        if (localStorage.length > 0 && !confirm('Локальные данные будут перезаписаны. Продолжить?')) {
+
+        if (!confirm('Будут добавлены или обновлены ключи. Остальные не изменятся. Продолжить?')) {
           return;
         }
-        localStorage.clear();
-        for (const key in obj) {
-          localStorage.setItem(key, obj[key]);
+
+        for (const [key, value] of Object.entries(obj)) {
+          localStorage.setItem(key, value);
         }
-        alert('Импорт данных выполнен успешно');
+
+        alert('Импорт из поля завершён.');
       } catch (err) {
-        alert('Ошибка, pipec при импорте: ' + err.message);
+        alert('Ошибка при импорте из поля: ' + err.message);
       }
     }
 
+    // Скачать как файл
+    function downloadToFile() {
+      const encoded = document.getElementById('dataArea').value.trim();
+      if (!encoded) {
+        alert('Поле пустое, экспортируйте данные сначала');
+        return;
+      }
+
+      const blob = new Blob([encoded], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'localStorage_backup.txt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Импорт из файла
+    function importFromFile(file) {
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const encoded = event.target.result.trim();
+        document.getElementById('dataArea').value = encoded;
+        doImportFromText();
+      };
+      reader.onerror = function() {
+        alert('Ошибка чтения файла');
+      };
+      reader.readAsText(file);
+    }
+
+    // Очистить поле
+    function clearTextArea() {
+      document.getElementById('dataArea').value = '';
+    }
+
+    // События
     document.getElementById('exportBtn').addEventListener('click', doExport);
-    document.getElementById('importBtn').addEventListener('click', doImport);
+    document.getElementById('downloadBtn').addEventListener('click', downloadToFile);
+    document.getElementById('importBtn').addEventListener('click', doImportFromText);
+    document.getElementById('clearBtn').addEventListener('click', clearTextArea);
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        importFromFile(e.target.files[0]);
+      }
+    });
   </script>
 
 </body>
