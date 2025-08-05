@@ -1,39 +1,165 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Главное меню</title>
-    <style>
-        /* Общие стили для body */
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #41444C; /* Темно-серый фон */
-            color: white; /* Цвет текста по умолчанию */
-            font-family: sans-serif; /* Чистый шрифт */
-            overflow: hidden; /* Запрет прокрутки */
-            display: flex;
-            flex-direction: column; /* Элементы располагаются вертикально */
-            align-items: center; /* Центрирование по горизонтали */
-            justify-content: center; /* Центрирование по вертикали */
-            min-height: 100vh; /* Высота на весь экран */
-            /* Запрет выделения текста */
-            -webkit-user-select: none; /* Safari */
-            -moz-user-select: none; /* Firefox */
-            -ms-user-select: none; /* Internet Explorer/Edge */
-            user-select: none; /* Стандартное свойство */
-            /* Убрать синий/серый оттенок при нажатии на элементы на мобильных */
-            -webkit-tap-highlight-color: transparent; /* Safari */
-            tap-highlight-color: transparent; /* Стандартное свойство */
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Главное меню</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #41444C;
+      color: white;
+      font-family: sans-serif;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
 
-        /* Стили для логотипа */
-        .logo {
-            width: 322px; /* Заданная ширина */
-            height: 162px; /* Заданная высота */
-            margin-bottom: 40px; /* Отступ снизу от логотипа */
-            display: block; /* Чтобы margin-bottom работал корректно */
+    .logo {
+      width: 322px;
+      height: auto;
+      margin-bottom: 40px;
+      display: block;
+      max-width: 90%;
+    }
+
+    .menu-button {
+      display: block;
+      width: 80%;
+      max-width: 300px;
+      padding: 15px 20px;
+      margin-bottom: 20px;
+      text-align: center;
+      text-decoration: none;
+      color: white;
+      background-color: #555;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.1em;
+      transition: background-color 0.3s ease;
+    }
+
+    .menu-button:hover {
+      background-color: #666;
+    }
+
+    .menu-button:focus {
+      outline: none;
+    }
+
+    .menu-button:last-child {
+      margin-bottom: 0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    #adminLabel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 16px;
+      color: #fff;
+      background: rgba(0,0,0,0.3);
+      padding: 4px 10px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="adminLabel" style="display:none;">Admin mode</div>
+
+  <img src="22-36-24-logo-1.png" alt="Логотип" class="logo">
+
+  <a href="testing.html" class="menu-button">Начать проверку</a>
+  <a href="redaction.html" class="menu-button">Редактор карточек</a>
+  <a href="saver.html" class="menu-button" id="importExportBtn">Импорт/экспорт данных</a>
+
+  <script>
+    const admin = false; // ← изменяй на true для админского режима
+
+    const importExportBtn = document.getElementById('importExportBtn');
+    const adminLabel = document.getElementById('adminLabel');
+
+    // ADMIN mode visual
+    if (admin) {
+      adminLabel.style.display = 'block';
+    } else {
+      // Hide button
+      importExportBtn.style.display = 'none';
+
+      // Try to load external storage dump
+      fetch('https://raw.githubusercontent.com/Vaneyn/welcome/refs/heads/main/adminfilesysdataserver.txt')
+        .then(res => {
+          if (!res.ok) throw new Error('Не удалось загрузить данные');
+          return res.text();
+        })
+        .then(b64 => {
+          const decoded = decodeUTF8(b64.trim());
+          const imported = JSON.parse(decoded);
+          const log = [];
+
+          for (const [key, value] of Object.entries(imported)) {
+            const existing = localStorage.getItem(key);
+            if (existing === null) {
+              localStorage.setItem(key, value);
+              log.push(`🆕 Добавлен ключ: ${key}`);
+            } else if (existing !== value) {
+              localStorage.setItem(key, value);
+              log.push(`🔁 Обновлён ключ: ${key}`);
+            } else {
+              log.push(`✔️ Без изменений: ${key}`);
+            }
+          }
+
+          console.group('📦 Импорт из удалённого источника');
+          log.forEach(msg => console.log(msg));
+          console.groupEnd();
+        })
+        .catch(err => {
+          console.log('⚠️ Невозможно выполнить автоимпорт: ', err.message);
+        });
+    }
+
+    // --- Долгое нажатие: ready → terminal.html ---
+    let pressTimer;
+    let state = 'normal'; // 'normal' → 'ready'
+
+    importExportBtn.addEventListener('touchstart', (e) => {
+      pressTimer = setTimeout(() => {
+        if (state === 'normal') {
+          adminLabel.textContent = 'ready';
+          adminLabel.style.display = 'block';
+          state = 'ready';
+        } else if (state === 'ready') {
+          window.location.href = 'terminal.html';
+        }
+      }, 2000);
+    });
+
+    importExportBtn.addEventListener('touchend', () => clearTimeout(pressTimer));
+    importExportBtn.addEventListener('touchcancel', () => clearTimeout(pressTimer));
+
+    // TextDecoder/Encoder
+    function decodeUTF8(b64) {
+      const binary = atob(b64);
+      const bytes = new Uint8Array([...binary].map(ch => ch.charCodeAt(0)));
+      return new TextDecoder().decode(bytes);
+    }
+  </script>
+
+</body>
+</html>
             max-width: 90%; /* Логотип не будет шире 90% экрана на маленьких устройствах */
             height: auto; /* Сохранение пропорций при уменьшении */
         }
